@@ -2,9 +2,13 @@
   <q-page class="row q-pt-xl">
     <div class="full-width q-px-xl">
       <div class="q-mb-xl">
-        <q-input v-model="tempData.name" label="姓名" />
-        <q-input v-model="tempData.age" label="年齡" />
-        <q-btn color="primary" class="q-mt-md">新增</q-btn>
+        <q-input v-model="tempData.name" label="姓名" :rules="[requiredRule]" />
+        <q-input
+          v-model="tempData.age"
+          label="年齡"
+          :rules="[requiredRule, positiveIntegerRule]"
+        />
+        <q-btn color="primary" class="q-mt-md" @click="addNewRow">新增</q-btn>
       </div>
 
       <q-table
@@ -35,7 +39,12 @@
               :props="props"
               style="min-width: 120px"
             >
-              <div>{{ col.value }}</div>
+              <template v-if="props.row.editIng">
+                <q-input v-model="props.row[col.field]" dense />
+              </template>
+              <template v-else>
+                <div>{{ col.value }}</div>
+              </template>
             </q-td>
             <q-td class="text-right" auto-width v-if="tableButtons.length > 0">
               <q-btn
@@ -79,17 +88,44 @@
 
 <script setup lang="ts">
 import axios from 'axios';
-import { QTableProps } from 'quasar';
-import { ref } from 'vue';
+import { QTableProps, useQuasar } from 'quasar';
+import { ref, onMounted } from 'vue';
 interface btnType {
   label: string;
   icon: string;
   status: string;
 }
+interface eachRowDataType {
+  age: number;
+  id: string;
+  name: string;
+  creatorId: string;
+  editIng: boolean;
+}
+onMounted(async () => {
+  await searchData();
+});
+// 查找資料
+async function searchData() {
+  try {
+    const response = await axios.get(
+      'https://demo.mercuryfire.com.tw:49110/crudTest/a'
+    );
+    if (response.status === 200) {
+      blockData.value = response.data.result;
+      blockData.value.forEach((data) => {
+        data.editIng = false;
+      });
+    }
+  } catch (error) {
+    console.error('請求失敗', error);
+  }
+}
 const blockData = ref([
   {
     name: 'test',
     age: 25,
+    editIng: false,
   },
 ]);
 const tableConfig = ref([
@@ -113,6 +149,11 @@ const tableButtons = ref([
     status: 'edit',
   },
   {
+    label: '儲存',
+    icon: 'save',
+    status: 'save',
+  },
+  {
     label: '刪除',
     icon: 'delete',
     status: 'delete',
@@ -123,8 +164,93 @@ const tempData = ref({
   name: '',
   age: '',
 });
-function handleClickOption(btn, data) {
-  // ...
+// 刪除某列
+async function deleteRow(data: eachRowDataType): Promise<void> {
+  try {
+    const response = await axios.delete(
+      `https://demo.mercuryfire.com.tw:49110/crudTest/${data.id}`
+    );
+    if (response.status === 200) {
+      await searchData();
+    }
+  } catch (error) {
+    console.error('請求失敗', error);
+  }
+}
+function editRow(data: eachRowDataType): void {
+  try {
+    data.editIng = true;
+  } catch (error) {
+    console.error('請求失敗', error);
+  }
+}
+async function saveRow(data: eachRowDataType): Promise<void> {
+  if (!validateNameAndAge(data)) {
+    return;
+  }
+  const response = await axios.patch(
+    'https://demo.mercuryfire.com.tw:49110/crudTest',
+    data
+  );
+  if (response.status === 200) {
+    await searchData();
+  }
+}
+function handleClickOption<T extends btnType, K extends eachRowDataType>(
+  btn: T,
+  data: K
+) {
+  if (!btn || typeof btn.status !== 'string') {
+    throw new Error('Invalid button object');
+  }
+
+  // 确保传入的数据具有预期的属性
+  if (!data || typeof data !== 'object' || !('id' in data)) {
+    throw new Error('Invalid data object');
+  }
+
+  // 根据按钮状态执行相应操作
+  switch (btn.status) {
+    case 'delete':
+      deleteRow(data);
+      break;
+    case 'edit':
+      editRow(data);
+      break;
+    case 'save':
+      saveRow(data);
+      break;
+    default:
+      throw new Error(`Unsupported button status: ${btn.status}`);
+  }
+}
+
+async function addNewRow() {
+  if (!validateNameAndAge(tempData.value)) {
+    return;
+  }
+  const response = await axios.post(
+    'https://demo.mercuryfire.com.tw:49110/crudTest',
+    {
+      age: +tempData.value.age,
+      name: tempData.value.name,
+    }
+  );
+  if (response.status === 200) {
+    await searchData();
+  }
+}
+const requiredRule = (val: any) => !!val || '此欄位不得為空';
+const positiveIntegerRule = (val: number) =>
+  /^[1-9]\d*$/.test(val) || '請輸入正整數';
+function validateNameAndAge(toValidateData: eachRowDataType) {
+  const ageValidation = positiveIntegerRule(+toValidateData.age);
+  const nameValidation = requiredRule(toValidateData.name);
+  if (ageValidation !== true || nameValidation !== true) {
+    return false;
+  } else {
+    return true;
+  }
 }
 </script>
 
