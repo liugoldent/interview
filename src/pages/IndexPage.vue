@@ -88,7 +88,7 @@
 
 <script setup lang="ts">
 import axios from 'axios';
-import { QTableProps, useQuasar } from 'quasar';
+import { QTableProps } from 'quasar';
 import { ref, onMounted } from 'vue';
 interface btnType {
   label: string;
@@ -190,7 +190,12 @@ async function saveRow(data: eachRowDataType): Promise<void> {
   }
   const response = await axios.patch(
     'https://demo.mercuryfire.com.tw:49110/crudTest',
-    data
+    {
+      name: data.name,
+      age: +data.age,
+      creatorId: data.creatorId,
+      id: data.id,
+    }
   );
   if (response.status === 200) {
     await searchData();
@@ -240,7 +245,7 @@ async function addNewRow() {
     await searchData();
   }
 }
-const requiredRule = (val: any) => !!val || '此欄位不得為空';
+const requiredRule = (val) => !!val || '此欄位不得為空';
 const positiveIntegerRule = (val: number) =>
   /^[1-9]\d*$/.test(val) || '請輸入正整數';
 function validateNameAndAge(toValidateData: eachRowDataType) {
